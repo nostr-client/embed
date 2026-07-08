@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta property="og:title" content="embed — nostr-client">
+<meta property="og:description" content="Put any nostr note, profile or feed on any website — copy-paste, no build, no iframe.">
+<meta property="og:url" content="https://nostr-client.github.io/embed/">
+<meta property="og:image" content="https://nostr-client.github.io/embed/og.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="nostr-client">
+<meta name="twitter:card" content="summary_large_image">
+<title>embed — put nostr on any website</title>
+<link rel="stylesheet" href="https://nostr-client.github.io/theme/theme.css">
+<style>
+  body { max-width: 44rem; margin: 2.5rem auto; padding: 0 1.2rem 4rem; }
+  h1 { font-size: 1.4rem; } h1 a { text-decoration: none; }
+  .what { display: flex; gap: .4rem; margin: 1rem 0; flex-wrap: wrap; }
+  .what button { font: inherit; font-size: .85rem; cursor: pointer;
+    border: 1px solid var(--nc-line); background: var(--nc-surface); color: var(--nc-soft);
+    padding: .35em 1em; border-radius: 999px; }
+  .what button.active { border-color: var(--nc-accent); color: var(--nc-accent);
+    background: var(--nc-accent-soft); font-weight: 600; }
+  input { font: inherit; width: 100%; padding: .55em .7em; border-radius: 9px;
+    box-sizing: border-box; border: 1px solid var(--nc-line); background: var(--nc-surface);
+    color: inherit; font-family: var(--nc-mono); font-size: .82rem; }
+  .snippet { position: relative; margin: 1rem 0; }
+  .snippet pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .copy { position: absolute; top: .6rem; right: .6rem; }
+  h2 { font-size: .95rem; margin-top: 2rem; }
+  #preview { border: 1px dashed var(--nc-line); border-radius: var(--nc-radius);
+    padding: 1rem; }
+</style>
+</head>
+<body>
+<h1><a href="https://github.com/nostr-client/embed">nostr-client / embed</a></h1>
+<p class="nc-muted">Put nostr on <em>any</em> website — a blog, a docs page,
+a shop. No iframe, no SDK, no build: paste two tags. Pick what to embed:</p>
+
+<div class="what" id="what">
+  <button data-kind="note" class="active">a note</button>
+  <button data-kind="profile">a profile</button>
+  <button data-kind="feed">someone's feed</button>
+  <button data-kind="hashtag">a hashtag feed</button>
+  <button data-kind="global">the firehose</button>
+</div>
+<input id="in" spellcheck="false" placeholder="note id / nevent / npub / hex / hashtag…">
+
+<div class="snippet">
+  <pre id="code"></pre>
+  <button class="nc-btn copy" id="copy">Copy</button>
+</div>
+
+<h2 class="nc-muted">Live preview — exactly what your visitors get</h2>
+<div id="preview"></div>
+
+<script type="module">
+  import 'https://nostr-client.github.io/note/note.js'
+  import 'https://nostr-client.github.io/feed/feed.js'
+  import 'https://nostr-client.github.io/profile/profile.js'
+  import { decodeAny } from 'https://nostr-client.github.io/nip19/nip19.js'
+  import { defaultPool } from 'https://nostr-client.github.io/pool/pool.js'
+
+  const BASE = 'https://nostr-client.github.io'
+  const input = document.getElementById('in')
+  const code = document.getElementById('code')
+  const preview = document.getElementById('preview')
+  const buttons = document.querySelectorAll('#what button')
+  let kind = 'note'
+
+  const PLACEHOLDER = {
+    note: 'note id — hex or note1… / nevent1…',
+    profile: 'pubkey — hex or npub1…',
+    feed: 'author pubkey — hex or npub1…',
+    hashtag: 'hashtag, e.g. bitcoin',
+    global: '(nothing needed)',
+  }
+
+  function snippet() {
+    let value = input.value.trim()
+    try {
+      if (kind !== 'hashtag' && kind !== 'global' && value) value = decodeAny(value).hex
+    } catch { return null }
+    if (kind === 'note') {
+      if (!/^[0-9a-f]{64}$/.test(value)) return null
+      return `<script type="module" src="${BASE}/note/note.js"><\/script>\n<nostr-note event-id="${value}"></nostr-note>`
+    }
+    if (kind === 'profile') {
+      if (!/^[0-9a-f]{64}$/.test(value)) return null
+      return `<script type="module" src="${BASE}/profile/profile.js"><\/script>\n<nostr-profile pubkey="${value}"></nostr-profile>`
+    }
+    if (kind === 'feed') {
+      if (!/^[0-9a-f]{64}$/.test(value)) return null
+      return `<script type="module" src="${BASE}/feed/feed.js"><\/script>\n<nostr-feed authors="${value}" limit="10"></nostr-feed>`
+    }
+    if (kind === 'hashtag') {
+      value = value.replace(/^#/, '').toLowerCase()
+      if (!value) return null
+      return `<script type="module" src="${BASE}/feed/feed.js"><\/script>\n<nostr-feed hashtag="${value}" limit="10"></nostr-feed>`
+    }
+    return `<script type="module" src="${BASE}/feed/feed.js"><\/script>\n<nostr-feed limit="10"></nostr-feed>`
+  }
+
+  function render() {
+    input.placeholder = PLACEHOLDER[kind]
+    input.disabled = kind === 'global'
+    const snip = snippet()
+    code.textContent = snip ?? '… waiting for a valid ' + PLACEHOLDER[kind]
+    preview.innerHTML = ''
+    if (!snip) return
+    // preview: recreate just the element line (modules already loaded here)
+    const elementHtml = snip.split('\n')[1]
+    const tmp = document.createElement('template')
+    tmp.innerHTML = elementHtml
+    preview.append(tmp.content)
+  }
+
+  for (const b of buttons) {
+    b.onclick = () => {
+      kind = b.dataset.kind
+      for (const x of buttons) x.classList.toggle('active', x === b)
+      render()
+    }
+  }
+  input.oninput = render
+  document.getElementById('copy').onclick = () => {
+    const snip = snippet()
+    if (snip) navigator.clipboard?.writeText(snip)
+  }
+
+  // seed with a fresh note so the page demos itself
+  const seed = await defaultPool().get({ kinds: [1], limit: 1 })
+  if (seed) { input.value = seed.id; render() }
+  else render()
+</script>
+</body>
+</html>
