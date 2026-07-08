@@ -44,6 +44,7 @@ a shop. No iframe, no SDK, no build: paste two tags. Pick what to embed:</p>
   <button data-kind="feed">someone's feed</button>
   <button data-kind="hashtag">a hashtag feed</button>
   <button data-kind="global">the firehose</button>
+  <button data-kind="guestbook">a comment section</button>
 </div>
 <input id="in" spellcheck="false" placeholder="note id / nevent / npub / hex / hashtag…">
 
@@ -75,6 +76,7 @@ a shop. No iframe, no SDK, no build: paste two tags. Pick what to embed:</p>
     feed: 'author pubkey — hex or npub1…',
     hashtag: 'hashtag, e.g. bitcoin',
     global: '(nothing needed)',
+    guestbook: 'page URL (or leave empty for the host page)',
   }
 
   function snippet() {
@@ -98,6 +100,10 @@ a shop. No iframe, no SDK, no build: paste two tags. Pick what to embed:</p>
       value = value.replace(/^#/, '').toLowerCase()
       if (!value) return null
       return `<script type="module" src="${BASE}/feed/feed.js"><\/script>\n<nostr-feed hashtag="${value}" limit="10"></nostr-feed>`
+    }
+    if (kind === 'guestbook') {
+      const urlAttr = value ? ` url="${value.replaceAll('"', '')}"` : ''
+      return `<script type="module" src="${BASE}/guestbook/guestbook.js"><\/script>\n<nostr-guestbook${urlAttr}></nostr-guestbook>`
     }
     return `<script type="module" src="${BASE}/feed/feed.js"><\/script>\n<nostr-feed limit="10"></nostr-feed>`
   }
